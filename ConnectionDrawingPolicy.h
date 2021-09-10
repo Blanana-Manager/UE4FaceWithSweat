@@ -77,12 +77,14 @@ protected:
 	const FSlateBrush* ArrowImage;
 	const FSlateBrush* MidpointImage;
 	const FSlateBrush* BubbleImage;
+	const FSlateBrush* EmojiImage;
 
 	const UGraphEditorSettings* Settings;
 
 public:
 	FVector2D ArrowRadius;
 	FVector2D MidpointRadius;
+	FVector2D EmojiRadius;
 
 	FGraphSplineOverlapResult SplineOverlapResult;
 
@@ -146,4 +148,37 @@ protected:
 
 	// Helper function used by Draw(). Iterates over the pin geometries, drawing connections between them
 	virtual void DrawPinGeometries(TMap<TSharedRef<SWidget>, FArrangedWidget>& InPinGeometries, FArrangedChildren& ArrangedNodes);
+
+	//aoligeideng begin
+	struct EmojiConnectionStruct {
+		UEdGraphPin* OutputPin;
+		UEdGraphPin* InputPin;
+		float localpos;
+	};
+	TMap<TPair<UEdGraphPin*, UEdGraphPin*>,EmojiConnectionStruct> EmojiConnections;
+	TArray<EmojiConnectionStruct> EmojiArray;
+	float counter = 0;
+	virtual void DrawPinGeometries_Extend(TMap<TSharedRef<SWidget>, FArrangedWidget>& InPinGeometries, FArrangedChildren& ArrangedNodes);
+	void DrawEmoji(const FGeometry& StartGeom, const FGeometry& EndGeom, const FConnectionParams& Params,float t);
+	//aoligeideng end
+};
+
+class EmojisManager 
+{
+private:
+	struct EmojiConnectionStruct {
+		UEdGraphPin* OutputPin;
+		UEdGraphPin* InputPin;
+		float localpos;
+	};
+	TMap<TPair<UEdGraphPin*, UEdGraphPin*>, EmojiConnectionStruct> EmojiConnections;
+
+	static TSharedPtr<EmojisManager> sManager;
+
+public:
+	void Add(UEdGraphPin* OutputPin, UEdGraphPin* InputPin, const EmojiConnectionStruct& v);
+	EmojiConnectionStruct* Find(UEdGraphPin* OutputPin, UEdGraphPin* InputPin);
+
+	
+	static TSharedPtr<EmojisManager> Get();
 };

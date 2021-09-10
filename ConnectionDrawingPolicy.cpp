@@ -96,6 +96,9 @@ FConnectionDrawingPolicy::FConnectionDrawingPolicy(int32 InBackLayerID, int32 In
 	HoverDeemphasisDarkFraction = 0.8f;
 
 	BubbleImage = FEditorStyle::GetBrush( TEXT("Graph.ExecutionBubble") );
+
+	EmojiImage = FEditorStyle::GetBrush(TEXT("Graph.Emoji"));
+	EmojiRadius = EmojiImage->ImageSize * ZoomFactor * 0.5f;
 }
 
 void FConnectionDrawingPolicy::DrawSplineWithArrow(const FVector2D& StartPoint, const FVector2D& EndPoint, const FConnectionParams& Params)
@@ -110,7 +113,6 @@ void FConnectionDrawingPolicy::DrawSplineWithArrow(const FVector2D& StartPoint, 
 	// Draw the arrow
 	if (ArrowImage != nullptr)
 	{
-		//UE_LOG(LogTemp, Warning, TEXT("Draw Arrow Image"));
 		FVector2D ArrowPoint = EndPoint - ArrowRadius;
 
 		FSlateDrawElement::MakeBox(
@@ -122,6 +124,26 @@ void FConnectionDrawingPolicy::DrawSplineWithArrow(const FVector2D& StartPoint, 
 			Params.WireColor
 			);
 	}
+
+	/*if (EmojiImage != nullptr)
+	{
+		
+		FVector2D ArrowPoint = EndPoint;
+
+		if (Params.AssociatedPin1->Direction == EEdGraphPinDirection::EGPD_Output)
+			ArrowPoint = EndPoint - EmojiRadius;
+		else
+			ArrowPoint = StartPoint - EmojiRadius;
+
+		FSlateDrawElement::MakeBox(
+			DrawElementsList,
+			WireLayerID,
+			FPaintGeometry(ArrowPoint, EmojiImage->ImageSize * ZoomFactor, ZoomFactor),
+			EmojiImage,
+			ESlateDrawEffect::None,
+			Params.WireColor
+		);
+	}*/
 }
 
 void FConnectionDrawingPolicy::DrawSplineWithArrow(const FGeometry& StartGeom, const FGeometry& EndGeom, const FConnectionParams& Params)
@@ -438,7 +460,7 @@ void FConnectionDrawingPolicy::Draw(TMap<TSharedRef<SWidget>, FArrangedWidget>& 
 
 	BuildPinToPinWidgetMap(InPinGeometries);
 
-	DrawPinGeometries(InPinGeometries, ArrangedNodes);
+	DrawPinGeometries_Extend(InPinGeometries, ArrangedNodes);
 }
 
 void FConnectionDrawingPolicy::BuildPinToPinWidgetMap(TMap<TSharedRef<SWidget>, FArrangedWidget>& InPinGeometries)
@@ -477,6 +499,77 @@ void FConnectionDrawingPolicy::DrawPinGeometries(TMap<TSharedRef<SWidget>, FArra
 					FConnectionParams Params;
 					DetermineWiringStyle(ThePin, TargetPin, /*inout*/ Params);
 					DrawSplineWithArrow(LinkStartWidgetGeometry->Geometry, LinkEndWidgetGeometry->Geometry, Params);
+				}
+			}
+		}
+	}
+}
+
+void FConnectionDrawingPolicy::DrawEmoji(const FGeometry& StartGeom, const FGeometry& EndGeom, const FConnectionParams& Params, float t)
+{
+	const float StartFudgeX = 4.0f;
+	const float EndFudgeX = 4.0f;
+	const FVector2D StartPoint = FGeometryHelper::VerticalMiddleRightOf(StartGeom) - FVector2D(StartFudgeX, 0.0f);
+	const FVector2D EndPoint = FGeometryHelper::VerticalMiddleLeftOf(EndGeom) - FVector2D(ArrowRadius.X - EndFudgeX, 0);
+
+	FVector2D Point = StartPoint + (EndPoint - StartPoint) * t;
+	Point = Point - EmojiRadius;
+	//FSlateDrawElement::MakeBox(
+	//	DrawElementsList,
+	//	WireLayerID,
+	//	FPaintGeometry(Point, EmojiImage->ImageSize * ZoomFactor, ZoomFactor),
+	//	EmojiImage,
+	//	ESlateDrawEffect::None,
+	//	Params.WireColor);
+
+	FSlateDrawElement::MakeRotatedBox(DrawElementsList, WireLayerID,
+		FPaintGeometry(Point, EmojiImage->ImageSize * ZoomFactor, ZoomFactor),
+		EmojiImage, ESlateDrawEffect::None, t * 5, TOptional<FVector2D>(), FSlateDrawElement::RelativeToElement,
+		Params.WireColor);
+}
+
+void FConnectionDrawingPolicy::DrawPinGeometries_Extend(TMap<TSharedRef<SWidget>, FArrangedWidget>& InPinGeometries, FArrangedChildren& ArrangedNodes)
+{
+	//TMap<TPair<UEdGraphPin, UEdGraphPin>, EmojiConnectionStruct> TempMap = EmojiConnections;
+	//EmojiConnections.Empty();
+	TArray<EmojiConnectionStruct> TempArray = EmojiArray;
+	//EmojiArray.Empty();
+
+	static float loct = 0.0f;
+
+	for (TMap<TSharedRef<SWidget>, FArrangedWidget>::TIterator ConnectorIt(InPinGeometries); ConnectorIt; ++ConnectorIt)
+	{
+		TSharedRef<SWidget> SomePinWidget = ConnectorIt.Key();
+		SGraphPin& PinWidget = static_cast<SGraphPin&>(SomePinWidget.Get());
+		UEdGraphPin* ThePin = PinWidget.GetPinObj();
+
+		if (ThePin->Direction == EGPD_Output)
+		{
+			for (int32 LinkIndex = 0; LinkIndex < ThePin->LinkedTo.Num(); ++LinkIndex)
+			{
+				FArrangedWidget* LinkStartWidgetGeometry = nullptr;
+				FArrangedWidget* LinkEndWidgetGeometry = nullptr;
+
+				UEdGraphPin* TargetPin = ThePin->LinkedTo[LinkIndex];
+
+				DetermineLinkGeometry(ArrangedNodes, SomePinWidget, ThePin, TargetPin, /*out*/ LinkStartWidgetGeometry, /*out*/ LinkEndWidgetGeometry);
+
+				if ((LinkEndWidgetGeometry && LinkStartWidgetGeometry) && !IsConnectionCulled(*LinkStartWidgetGeometry, *LinkEndWidgetGeometry))
+				{
+					FConnectionParams Params;
+					DetermineWiringStyle(ThePin, TargetPin, /*inout*/ Params);
+					DrawSplineWithArrow(LinkStartWidgetGeometry->Geometry, LinkEndWidgetGeometry->Geometry, Params);
+
+					if (auto v = EmojisManager::Get()->Find(ThePin, TargetPin))
+					{
+						DrawEmoji(LinkStartWidgetGeometry->Geometry, LinkEndWidgetGeometry->Geometry, Params, v->localpos);
+						v->localpos += 0.003;
+						if (v->localpos > 1.0f) v->localpos = 0.0f;
+					}
+					else
+					{
+						EmojisManager::Get()->Add(ThePin, TargetPin, { ThePin,TargetPin,0.0f });
+					}
 				}
 			}
 		}
@@ -592,3 +685,23 @@ bool FGraphSplineOverlapResult::GetPins(const class SGraphPanel& InGraphPanel, U
 	return (OutPin1 != nullptr) && (OutPin2 != nullptr);
 }
 
+/////////////////////////////////////////////////////////////
+//Emoji Manager
+void EmojisManager::Add(UEdGraphPin* OutputPin, UEdGraphPin* InputPin,const EmojiConnectionStruct& v)
+{
+	EmojiConnections.Add(TPair<UEdGraphPin*, UEdGraphPin*>(OutputPin, InputPin),v);
+}
+
+EmojisManager::EmojiConnectionStruct* EmojisManager::Find(UEdGraphPin* OutputPin, UEdGraphPin* InputPin)
+{
+	return EmojiConnections.Find(TPair<UEdGraphPin*, UEdGraphPin*>(OutputPin, InputPin));
+}
+
+TSharedPtr<EmojisManager> EmojisManager::sManager = nullptr;
+TSharedPtr<EmojisManager> EmojisManager::Get()
+{
+	if (!EmojisManager::sManager)
+		sManager = MakeShared<EmojisManager>();
+
+	return sManager;
+}
