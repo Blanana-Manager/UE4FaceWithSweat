@@ -150,14 +150,6 @@ protected:
 	virtual void DrawPinGeometries(TMap<TSharedRef<SWidget>, FArrangedWidget>& InPinGeometries, FArrangedChildren& ArrangedNodes);
 
 	//aoligeideng begin
-	struct EmojiConnectionStruct {
-		UEdGraphPin* OutputPin;
-		UEdGraphPin* InputPin;
-		float localpos;
-	};
-	TMap<TPair<UEdGraphPin*, UEdGraphPin*>,EmojiConnectionStruct> EmojiConnections;
-	TArray<EmojiConnectionStruct> EmojiArray;
-	float counter = 0;
 	virtual void DrawPinGeometries_Extend(TMap<TSharedRef<SWidget>, FArrangedWidget>& InPinGeometries, FArrangedChildren& ArrangedNodes);
 	void DrawEmoji(const FGeometry& StartGeom, const FGeometry& EndGeom, const FConnectionParams& Params,float t);
 	//aoligeideng end

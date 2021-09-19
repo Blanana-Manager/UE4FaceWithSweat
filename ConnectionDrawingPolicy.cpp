@@ -460,6 +460,8 @@ void FConnectionDrawingPolicy::Draw(TMap<TSharedRef<SWidget>, FArrangedWidget>& 
 
 	BuildPinToPinWidgetMap(InPinGeometries);
 
+	//DrawPinGeometries(InPinGeometries, ArrangedNodes);
+	//Draw FaceWithSweat
 	DrawPinGeometries_Extend(InPinGeometries, ArrangedNodes);
 }
 
@@ -512,7 +514,25 @@ void FConnectionDrawingPolicy::DrawEmoji(const FGeometry& StartGeom, const FGeom
 	const FVector2D StartPoint = FGeometryHelper::VerticalMiddleRightOf(StartGeom) - FVector2D(StartFudgeX, 0.0f);
 	const FVector2D EndPoint = FGeometryHelper::VerticalMiddleLeftOf(EndGeom) - FVector2D(ArrowRadius.X - EndFudgeX, 0);
 
-	FVector2D Point = StartPoint + (EndPoint - StartPoint) * t;
+	const FVector2D SplineTangent = ComputeSplineTangent(StartPoint,EndPoint);
+	const FVector2D P0Tangent = (Params.StartDirection == EGPD_Output) ? SplineTangent : -SplineTangent;
+	const FVector2D P1Tangent = (Params.EndDirection == EGPD_Input) ? SplineTangent : -SplineTangent;
+
+	const FVector2D& P0 = StartPoint;
+	const FVector2D P1 = StartPoint + P0Tangent /3.0f;
+
+	const FVector2D P2 = EndPoint - P1Tangent / 3.0f;
+	const FVector2D& P3 = EndPoint;
+
+	//Lerp Pass
+	//const FVector2D LP0 = P0 + (P1 - P0) * t;
+	//const FVector2D LP1 = P1 + (P2 - P1) * t;
+	//const FVector2D LP2 = P2 + (P3 - P2) * t;
+	//const FVector2D LP01 = LP0 + (LP1 - LP0) * t;
+	//const FVector2D LP12 = LP1 + (LP2 - LP1) * t;
+	float a = 1.0f - t;
+	float b = t;
+	FVector2D Point = a * a * a * P0 + 3 * a * a * b * P1 + 3 * a * b * b * P2 + b * b * b * P3;
 	Point = Point - EmojiRadius;
 	//FSlateDrawElement::MakeBox(
 	//	DrawElementsList,
@@ -530,12 +550,6 @@ void FConnectionDrawingPolicy::DrawEmoji(const FGeometry& StartGeom, const FGeom
 
 void FConnectionDrawingPolicy::DrawPinGeometries_Extend(TMap<TSharedRef<SWidget>, FArrangedWidget>& InPinGeometries, FArrangedChildren& ArrangedNodes)
 {
-	//TMap<TPair<UEdGraphPin, UEdGraphPin>, EmojiConnectionStruct> TempMap = EmojiConnections;
-	//EmojiConnections.Empty();
-	TArray<EmojiConnectionStruct> TempArray = EmojiArray;
-	//EmojiArray.Empty();
-
-	static float loct = 0.0f;
 
 	for (TMap<TSharedRef<SWidget>, FArrangedWidget>::TIterator ConnectorIt(InPinGeometries); ConnectorIt; ++ConnectorIt)
 	{
